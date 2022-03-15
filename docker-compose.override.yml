@@ -1,0 +1,12 @@
+version: "3.7"
+
+services:
+
+  dev:
+    build: .
+    ipc: host
+    volumes:
+      - ./main.py:/home/python/app/main.py
+      - ./requirements.in:/home/python/app/requirements.in
+      - ./requirements.txt:/home/python/app/requirements.txt
+      - ./data:/home/python/app/data

@@ -1,0 +1,8 @@
+--find-links https://storage.googleapis.com/jax-releases/jax_releases.html
+jax[cuda11_cudnn82]
+#https://storage.googleapis.com/jax-releases/cuda11/jaxlib-0.3.0+cuda11.cudnn82-cp38-none-manylinux2010_x86_64.whl
+flax
+optax
+numpy
+rasterio
+tqdm
