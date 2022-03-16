@@ -1,17 +1,33 @@
-# nedem
+# Neural Implicit Digital Elevation Model
 
 Implicitly represent a digital elevation model as the weights of a neural network.
+We fit a neural network on a digital elevation model; we can reconstruct the digital elevation model by using the learned weights to predict elevation for every coordinate.
 
 Benefits
 - Flexible up/down scaling of the model's parameters to increase/decrease details
 - Weighted sampling during training to focus on details in regions of interest
 
-There is prior work to do this for 3d models; we try to answer the question if it is possible and reasonable for a digital elevation model.
+Examples, with a very small neural net (~15k parameters), 2k iterations, and different [fourier feature](https://arxiv.org/abs/2006.10739) scales
+
+|                                      |                                          |                                          |                                           |
+|--------------------------------------|------------------------------------------|------------------------------------------|-------------------------------------------|
+| ![](./assets/nedem-no-fourfeats.png) | ![](./assets/nedem-fourfeats-scale1.png) | ![](./assets/nedem-fourfeats-scale5.png) | ![](./assets/nedem-fourfeats-scale10.png) |
+
+_Left to right: no fourier features, fourier features with scale 1, with scale 5, with scale 10_
+
+Note: this project is experimental and a playground for me to learn Jax/Flax, neural implicits, and fourier features.
+
+
+## Dataset
+
+We use the [Copernicus GLO-30](https://registry.opendata.aws/copernicus-dem/) digital elevation model for experiments.
+
+    aws s3 cp s3://copernicus-dem-30m/Copernicus_DSM_COG_10_N46_00_E008_00_DEM/Copernicus_DSM_COG_10_N46_00_E008_00_DEM.tif . --no-sign-request
 
 
 ## Quadkeys
 
-We use quadkeys as the unit of abstraction. They can be generated from an arbitrary raster file with `rio` from `rasterio`
+We work with quadkey tifs as the unit of abstraction.
 
     rio warp in.tif 3857.tif --dst-crs EPSG:3857
     rio bounds 3857.tif | mercantile tiles 10 > z10.txt
@@ -20,21 +36,38 @@ We use quadkeys as the unit of abstraction. They can be generated from an arbitr
       rio clip 3857.tif $(mercantile quadkey "$tile").tif --with-complement --bounds "$(mercantile shapes --extents --mercator "$tile")"
     done < z10.txt
 
+This will warp and cut the raster tifs into quadkeys like `1202213002.tif`.
+
+
+## Training
+
+You will need docker, docker-compose, and the nvidia-docker plugin set up to run training on a GPU.
+
+We provide a self-contained and reproducible development environment with the correct drivers, versions, and dependencies.
+
+    make
+    make sh
+
+To fit a neural net on the quadkey `1202213002.tif`, in the self-contained development environment run
+
+    ./main.py data/1202213002.tif
+
 
 ## Hillshade
 
-The digital elevation model is best visualize as a hillshaded tif; you can use `gdaldem` from `gdal-bin` for hill shading
+The digital elevation model is best visualized as a hillshaded tif; you can use `gdaldem` from `gdal-bin` for hill shading
 
-    for p in step-*.tif; do gdaldem hillshade $p -multidirectional -co compress=deflate -co predictor=2 hillshade-$p ; done
+    for p in step-*.tif; do gdaldem hillshade $p -multidirectional hillshade-$p ; done
 
 The model fitting happens over multiple steps; you can use `ffmpeg` to animate the hill shaded tifs
 
-    ffmpeg -y -loglevel error -r 5 -f image2 -pattern_type glob -i "hillshade-step-*.tif" -vf 'crop=w=768:h=768' -c:v libx264 -crf 23 -profile:v high -preset veryslow -pix_fmt yuv420p -movflags faststart hillshade-step.mp4
+    ffmpeg -y -loglevel error -r 15 -f image2 -pattern_type glob -i "hillshade-step-*.tif" -vf 'crop=w=512:h=512' -c:v libx264 -crf 23 -profile:v high -preset veryslow -pix_fmt yuv420p -movflags faststart hillshade-step.mp4
 
 
 ## References
 
 - https://arxiv.org/abs/2009.09808
+- https://arxiv.org/abs/2006.10739
 - https://registry.opendata.aws/copernicus-dem/
 
 
