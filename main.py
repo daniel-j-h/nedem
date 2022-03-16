@@ -73,7 +73,7 @@ def main(args):
     inputs = fourfeats(inputs, rng=seed, scale=10, size=2, features=256)
 
     rng, seed = jax.random.split(rng)
-    state = create_train_state(seed, inputs.shape, lr=1e-4)
+    state = create_train_state(seed, inputs.shape, lr=1e-3)
 
     num_params = sum(x.size for x in jax.tree_leaves(state.params))
     print(f"params: {num_params}", file=sys.stderr)
@@ -81,7 +81,7 @@ def main(args):
     inputs = jax.device_put(inputs)
     targets = jax.device_put(targets)
 
-    for step in range(1, 2000 + 1):
+    for step in range(1, 1000 + 1):
         grads, loss = apply_model(state, inputs, targets)
         state = update_model(state, grads)
 
@@ -94,7 +94,7 @@ def main(args):
             mean, std = errors.mean(), errors.std()
             emin, emax = errors.min(), errors.max()
 
-            print(f"step: {step:3d}, loss: {loss:.5f}, mean: {mean:3.0f}m, std: {std:3.0f}m, min: {emin:3.0f}, max: {emax:3.0f}m", file=sys.stderr)
+            print(f"step: {step:5d}, loss: {loss:.5f}, mean: {mean:3.0f}m, std: {std:3.0f}m, min: {emin:3.0f}, max: {emax:3.0f}m", file=sys.stderr)
 
             with rasterio.open(args.input) as src:
                 h, w = outputs.shape
