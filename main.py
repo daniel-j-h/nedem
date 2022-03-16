@@ -30,12 +30,10 @@ class Model(nn.Module):
 class Dataset:
     def __init__(self, path):
         with rasterio.open(path) as src:
-            data = src.read(1)
+            self.data = src.read(1)
 
-        self.mean = data.mean()
-        self.std = data.std()
-
-        self.data = self.normalize(data)
+        self.mean = self.data.mean()
+        self.std = self.data.std()
 
     def normalize(self, x):
         return (x - self.mean) / self.std
@@ -63,30 +61,40 @@ def main(args):
     rng = jax.random.PRNGKey(0)
 
     dataset = Dataset(args.input)
-    targets = np.expand_dims(dataset.sample(), axis=(0, -1))
+    sample = dataset.sample()
+
+    targets = dataset.normalize(sample)
+    targets = np.expand_dims(targets, axis=(0, -1))
 
     inputs = indices2d(targets.shape[1])
     inputs = np.expand_dims(inputs, axis=0)
 
-    #rng, seed = jax.random.split(rng)
-    #inputs = fourfeats(inputs, rng=seed, scale=10, size=2, features=256)
+    rng, seed = jax.random.split(rng)
+    inputs = fourfeats(inputs, rng=seed, scale=10, size=2, features=256)
 
     rng, seed = jax.random.split(rng)
     state = create_train_state(seed, inputs.shape, lr=1e-4)
 
+    num_params = sum(x.size for x in jax.tree_leaves(state.params))
+    print(f"params: {num_params}", file=sys.stderr)
+
     inputs = jax.device_put(inputs)
     targets = jax.device_put(targets)
 
-    for step in range(1, 10000 + 1):
+    for step in range(1, 2000 + 1):
         grads, loss = apply_model(state, inputs, targets)
         state = update_model(state, grads)
 
-        if step % 100 == 0:
-            print(f"step: {step:5d}, loss: {loss:.5f}", file=sys.stderr)
-
+        if step % 10 == 0:
             outputs = state.apply_fn({"params": state.params}, inputs)
             outputs = np.squeeze(outputs)
             outputs = dataset.denormalize(outputs)
+
+            errors = np.abs(outputs - sample)
+            mean, std = errors.mean(), errors.std()
+            emin, emax = errors.min(), errors.max()
+
+            print(f"step: {step:3d}, loss: {loss:.5f}, mean: {mean:3.0f}m, std: {std:3.0f}m, min: {emin:3.0f}, max: {emax:3.0f}m", file=sys.stderr)
 
             with rasterio.open(args.input) as src:
                 h, w = outputs.shape
@@ -101,12 +109,8 @@ def main(args):
 @jax.jit
 def apply_model(state, inputs, targets):
     def loss_fn(params):
-        #outputs = state.apply_fn({"params": params}, inputs)
-        outputs = Model().apply({"params": params}, inputs)
+        outputs = state.apply_fn({"params": params}, inputs)
         loss = jnp.mean(optax.l2_loss(outputs, targets))
-        #loss = jnp.mean(jnp.abs(outputs - targets))
-        #loss += jnp.mean(jnp.abs(outputs[:, :-1] - outputs[:, 1:]))
-        #loss += jnp.mean(jnp.abs(outputs[:-1, :] - outputs[1:, :]))
         return loss
 
     grad_fn = jax.value_and_grad(loss_fn)
