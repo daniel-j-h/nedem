@@ -15,8 +15,11 @@ import rasterio
 
 
 class Model(nn.Module):
+    n: int
+    h: int
+
     def setup(self):
-        self.layers = [nn.Dense(n) for n in [32] * 8 + [1]]
+        self.layers = [nn.Dense(n) for n in [self.h] * self.n + [1]]
 
     def __call__(self, x):
         for i, lyr in enumerate(self.layers):
@@ -73,22 +76,26 @@ def main(args):
     inputs = np.expand_dims(inputs, axis=0)
 
     rng, seed = jax.random.split(rng)
-    inputs = fourfeats(inputs, rng=seed, scale=10, size=2, features=256)
+    inputs = fourfeats(inputs, rng=seed, scale=args.ff_scale, size=2, features=args.ff_features)
+    print(f"fourier features: scale={args.ff_scale}, features={args.ff_features}", file=sys.stderr)
+
+    model = Model(n=args.nn_depth, h=args.nn_width)
 
     rng, seed = jax.random.split(rng)
-    state = create_train_state(seed, inputs.shape, lr=1e-3)
+    state = create_train_state(model, seed, inputs.shape, lr=args.nn_lr)
 
     num_params = sum(x.size for x in jax.tree_leaves(state.params))
-    print(f"params: {num_params}", file=sys.stderr)
+
+    print(f"model: n={args.nn_depth}, h={args.nn_width}, params: {num_params}, lr={args.nn_lr}", file=sys.stderr)
 
     inputs = jax.device_put(inputs)
     targets = jax.device_put(targets)
 
-    for step in range(1, 1000 + 1):
+    for step in range(1, args.train_steps + 1):
         grads, loss = apply_model(state, inputs, targets)
         state = update_model(state, grads)
 
-        if step % 10 == 0:
+        if step % args.train_save_freq == 0:
             outputs = state.apply_fn({"params": state.params}, inputs)
             outputs = np.squeeze(outputs)
             outputs = dataset.denormalize(outputs)
@@ -127,8 +134,7 @@ def update_model(state, grads):
     return state.apply_gradients(grads=grads)
 
 
-def create_train_state(rng, input_shape, lr):
-    model = Model()
+def create_train_state(model, rng, input_shape, lr):
     params = model.init(rng, jnp.zeros(input_shape))["params"]
     tx = optax.adam(lr)
 
@@ -136,9 +142,16 @@ def create_train_state(rng, input_shape, lr):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument("input", type=Path, help="Path to digital elevation model GeoTIFF")
     parser.add_argument("-o", "--outdir", type=Path, required=True, help="Path to output directory")
+    parser.add_argument("-w", "--nn-width", type=int, default=32, help="Number of features per layer")
+    parser.add_argument("-d", "--nn-depth", type=int, default=8, help="Number of dense layers")
+    parser.add_argument("-l", "--nn-lr", type=float, default=1e-3, help="Learning rate")
+    parser.add_argument("-f", "--ff-features", type=int, default=256, help="Number of fourier feature")
+    parser.add_argument("-s", "--ff-scale", type=int, default=10, help="Fourier feature scale")
+    parser.add_argument("-e", "--train-steps", type=int, default=1000, help="Steps to train for")
+    parser.add_argument("-p", "--train-save-freq", type=int, default=10, help="Save every step")
 
     main(parser.parse_args())
