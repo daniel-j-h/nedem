@@ -2,6 +2,7 @@
 
 import sys
 import argparse
+from pathlib import Path
 
 import numpy as np
 import jax
@@ -60,6 +61,8 @@ def fourfeats(inputs, *, rng, scale, size, features):
 def main(args):
     rng = jax.random.PRNGKey(0)
 
+    args.outdir.mkdir(exist_ok=True)
+
     dataset = Dataset(args.input)
     sample = dataset.sample()
 
@@ -102,7 +105,7 @@ def main(args):
                 profile = src.profile
                 profile.update(height=h, width=w)
 
-                with rasterio.open(f"data/step-{step:05d}.tif", "w", **profile) as dst:
+                with rasterio.open(args.outdir / f"step-{step:05d}.tif", "w", **profile) as dst:
                     dst.write(outputs, 1)
 
 
@@ -135,6 +138,7 @@ def create_train_state(rng, input_shape, lr):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("input", help="Path to digital elevation model GeoTIFF")
+    parser.add_argument("input", type=Path, help="Path to digital elevation model GeoTIFF")
+    parser.add_argument("-o", "--outdir", type=Path, required=True, help="Path to output directory")
 
     main(parser.parse_args())
