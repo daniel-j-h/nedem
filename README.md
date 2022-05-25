@@ -1,6 +1,5 @@
 # Neural Implicit Digital Elevation Model
 
-Implicitly represent a digital elevation model as the weights of a neural network.
 We fit a neural network on a digital elevation model; we can reconstruct the digital elevation model by using the learned weights to predict elevation for every coordinate.
 
 Benefits
@@ -9,11 +8,9 @@ Benefits
 
 Examples, with a very small neural net (~15k parameters), 2k iterations, and different [fourier feature](https://arxiv.org/abs/2006.10739) scales
 
-|                                      |                                          |                                          |                                           |
-|--------------------------------------|------------------------------------------|------------------------------------------|-------------------------------------------|
-| ![](./assets/nedem-no-fourfeats.png) | ![](./assets/nedem-fourfeats-scale1.png) | ![](./assets/nedem-fourfeats-scale5.png) | ![](./assets/nedem-fourfeats-scale10.png) |
+![](./assets/nedem.png)
 
-_Left to right: no fourier features, fourier features with scale 1, with scale 5, with scale 10_
+See [this issue](https://github.com/daniel-j-h/nedem/issues/2) for the respective training videos.
 
 Note: this project is experimental and a playground for me to learn Jax/Flax, neural implicits, and fourier features.
 
